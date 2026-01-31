@@ -84,7 +84,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onDelete, onEdit, is
         <div className="mb-6">
           <p className="text-[10px] text-zinc-600 font-black mb-2 uppercase tracking-widest">Tallas disponibles</p>
           <div className="flex flex-wrap gap-1.5">
-            {product.sizes.map(size => (
+            {product.sizes?.map(size => (
               <span key={size} className="px-2.5 py-1 bg-zinc-800 text-white text-[10px] font-bold border border-zinc-700 rounded-sm">
                 {size}
               </span>

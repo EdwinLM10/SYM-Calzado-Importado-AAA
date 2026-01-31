@@ -1,4 +1,6 @@
-
+import { saveProduct } from "./services/products";
+import { collection, onSnapshot, addDoc, deleteDoc, doc } from "firebase/firestore";
+import { db } from "./firebase";
 import React, { useState, useMemo, useEffect } from 'react';
 import Header from './components/Header';
 import ProductCard from './components/ProductCard';
@@ -20,10 +22,8 @@ const HERO_IMAGES = [
 const syncChannel = new BroadcastChannel('sym_sync_channel');
 
 const App: React.FC = () => {
-  const [products, setProducts] = useState<Product[]>(() => {
-    const saved = localStorage.getItem('sym_products');
-    return saved ? JSON.parse(saved) : INITIAL_PRODUCTS;
-  });
+const [products, setProducts] = useState<Product[]>([]);
+
   
   const [reviews, setReviews] = useState<Review[]>(() => {
     const saved = localStorage.getItem('sym_reviews');
@@ -55,18 +55,12 @@ const App: React.FC = () => {
   useEffect(() => {
     const handleSync = (event: MessageEvent) => {
       const { type, data } = event.data;
-      if (type === 'SYNC_PRODUCTS') setProducts(data);
       if (type === 'SYNC_REVIEWS') setReviews(data);
       if (type === 'SYNC_CONFIG') setConfig(data);
     };
     syncChannel.addEventListener('message', handleSync);
     return () => syncChannel.removeEventListener('message', handleSync);
   }, []);
-
-  useEffect(() => {
-    localStorage.setItem('sym_products', JSON.stringify(products));
-    syncChannel.postMessage({ type: 'SYNC_PRODUCTS', data: products });
-  }, [products]);
 
   useEffect(() => {
     localStorage.setItem('sym_reviews', JSON.stringify(reviews));
@@ -77,13 +71,24 @@ const App: React.FC = () => {
     localStorage.setItem('sym_config', JSON.stringify(config));
     syncChannel.postMessage({ type: 'SYNC_CONFIG', data: config });
   }, [config]);
-
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentHeroIndex((prev) => (prev + 1) % HERO_IMAGES.length);
     }, 4000);
     return () => clearInterval(timer);
   }, []);
+useEffect(() => {
+  const unsubscribe = onSnapshot(collection(db, "products"), (snapshot) => {
+    const productosFirestore: Product[] = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    } as Product));
+
+    setProducts(productosFirestore);
+  });
+
+  return () => unsubscribe();
+}, []);
 
   const filteredProducts = useMemo(() => {
     return products.filter(p => {
@@ -94,10 +99,9 @@ const App: React.FC = () => {
     });
   }, [products, filterCategory, filterSubCategory, searchQuery]);
 
-  const addProduct = (newProduct: Omit<Product, 'id'>) => {
-    const product: Product = { ...newProduct, id: Date.now().toString() };
-    setProducts(prev => [product, ...prev]);
-  };
+ const addProduct = async (newProduct: Omit<Product, 'id'>) => {
+  await saveProduct(newProduct);
+};
 
   const deleteProduct = (id: string) => {
     if (confirm('¿Eliminar este modelo del catálogo permanentemente?')) {
@@ -153,10 +157,10 @@ const App: React.FC = () => {
 
   // Función para importar datos completos (Nube manual)
   const handleImportData = (allData: any) => {
-    if (allData.products) setProducts(allData.products);
-    if (allData.reviews) setReviews(allData.reviews);
-    if (allData.config) setConfig(allData.config);
-  };
+  // ❌ NO tocar productos aquí
+  if (allData.reviews) setReviews(allData.reviews);
+  if (allData.config) setConfig(allData.config);
+};
 
   return (
     <div className="min-h-screen bg-black flex flex-col font-sans selection:bg-white selection:text-black">
